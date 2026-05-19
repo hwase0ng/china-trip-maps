@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>上海景点互动地图 · May 11-14, 2026</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif; background: #1a1a2e; display: flex; flex-direction: column; height: 100vh; }
+  #header { background: linear-gradient(135deg, #16213e, #0f3460); color: #fff; padding: 10px 16px; text-align: center; }
+  #header h1 { font-size: 18px; letter-spacing: 1px; }
+  #header p { font-size: 12px; opacity: 0.7; margin-top: 2px; }
+  #filter-bar { background: #fff; padding: 8px 12px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; border-bottom: 1px solid #e0e0e0; box-shadow: 0 1px 4px rgba(0,0,0,0.08); z-index: 1000; }
+  .filter-btn { display: inline-flex; align-items: center; gap: 4px; padding: 5px 14px; border-radius: 20px; border: 2px solid #ddd; background: #fff; cursor: pointer; font-size: 13px; font-weight: 500; transition: all 0.2s; }
+  .filter-btn:hover { transform: translateY(-1px); box-shadow: 0 2px 8px rgba(0,0,0,0.12); }
+  .filter-btn.active { color: #fff; border-color: transparent; box-shadow: 0 2px 6px rgba(0,0,0,0.2); }
+  .filter-btn .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+  .filter-btn .count { font-size: 10px; opacity: 0.7; margin-left: 2px; }
+  .filter-btn-all { background: #1a1a2e; color: #fff; border-color: #1a1a2e; }
+  .filter-btn-all.active { background: #0d0d1a; border-color: #0d0d1a; }
+  .filter-btn-all:hover { background: #333; }
+  .filter-extra { margin-left: auto; display: flex; gap: 4px; }
+  .filter-extra-btn { display: inline-flex; align-items: center; gap: 3px; padding: 5px 10px; border-radius: 20px; border: 2px solid #ddd; background: #fff; cursor: pointer; font-size: 12px; transition: all 0.2s; }
+  .filter-extra-btn.active { color: #fff; border-color: transparent; }
+  #map { flex: 1; }
+  .legend { background: rgba(255,255,255,0.95); border-radius: 10px; padding: 10px 14px; box-shadow: 0 2px 12px rgba(0,0,0,0.25); font-size: 13px; line-height: 1.8; max-width: 180px; }
+  .legend h4 { margin-bottom: 4px; font-size: 13px; border-bottom: 1px solid #eee; padding-bottom: 4px; color: #333; }
+  .legend-item { display: flex; align-items: center; gap: 6px; padding: 1px 4px; border-radius: 4px; color: #555; font-size: 12px; }
+  .legend-item .dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; border: 2px solid rgba(0,0,0,0.12); }
+  .leaflet-popup-content { font-size: 14px; line-height: 1.6; min-width: 190px; }
+  .popup-title { font-weight: bold; font-size: 16px; margin-bottom: 4px; }
+  .popup-date { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; color: #fff; margin-bottom: 6px; }
+  .popup-desc { font-size: 13px; color: #555; }
+  @media (max-width: 500px) {
+    #filter-bar { padding: 6px 8px; gap: 4px; }
+    .filter-btn { padding: 4px 10px; font-size: 12px; }
+    .filter-extra-btn { padding: 4px 8px; font-size: 11px; }
+  }
+</style>
+</head>
+<body>
+<div id="header">
+  <h1>🗺️ 上海景点互动地图</h1>
+  <p>华英雄 · 2026年5月11日–14日</p>
+</div>
+<div id="filter-bar"></div>
+<div id="map"></div>
+
+<script>
+// === CONFIG ===
+const colors = {
+  day1: { color: '#ff6b35', bg: '#fff0e6', label: '5/11 🟠 浦东', iconColor: '#e85d26', emoji: '🟠' },
+  day2: { color: '#1a73e8', bg: '#e8f0fe', label: '5/12 🔵 浦西', iconColor: '#0d5ec1', emoji: '🔵' },
+  day3: { color: '#34a853', bg: '#e6f4ea', label: '5/13 🟢 文艺', iconColor: '#1e8e3e', emoji: '🟢' },
+  day4: { color: '#9c27b0', bg: '#f3e5f5', label: '5/14 🟣 文化', iconColor: '#7b1fa2', emoji: '🟣' },
+  hotel: { color: '#f9a825', bg: '#fff8e1', label: '🏨 酒店', iconColor: '#f57f17', emoji: '🏨' },
+  food:  { color: '#ef5350', bg: '#ffebee', label: '🍜 美食', iconColor: '#d32f2f', emoji: '🍜' },
+};
+
+const pois = [
+  // === 5/11 (Mon) — 浦东全线 ===
+  { id: 'sjh', name: '📚 徐家汇书院', lat: 31.1925, lng: 121.4325, day: 'day1', desc: '徐家汇源·教堂旁现代图书馆', time: '10:30–11:00', order: '①' },
+  { id: 'lvender', name: '🌸 薰衣草花海', lat: 31.1459, lng: 121.6708, day: 'day1', desc: '上海国际旅游度假区·紫色花海', time: '12:00–14:00', order: '②' },
+  { id: 'disneytown', name: '🏰 迪士尼小镇', lat: 31.1423, lng: 121.6571, day: 'day1', desc: '免费入场·迪士尼主题小镇', time: '14:00–16:00', order: '③' },
+  { id: 'shanghaitower', name: '☁️ 朵云书院', lat: 31.2357, lng: 121.5014, day: 'day1', desc: '上海中心大厦52F·云端书店', time: '17:00–18:30', order: '④' },
+  { id: 'lujiazui', name: '🏙️ 陆家嘴', lat: 31.2402, lng: 121.4979, day: 'day1', desc: '三件套·金融中心天际线', time: '18:30–19:30', order: '⑤' },
+  { id: 'bund', name: '🌃 外滩', lat: 31.2353, lng: 121.4876, day: 'day1', desc: '万国建筑群·浦江夜景', time: '19:30–20:30', order: '⑥' },
+  { id: 'northbund', name: '📸 北外滩小巨蛋', lat: 31.2520, lng: 121.4910, day: 'day1', desc: '彩虹桥·网红打卡点', time: '20:30–21:00', order: '⑦' },
+  // === 5/12 (Tue) — 浦西经典 ===
+  { id: 'yuyuan', name: '🏯 豫园·城隍庙', lat: 31.2289, lng: 121.4880, day: 'day2', desc: '明代园林+城隍庙小吃', time: '09:00–10:30', order: '①' },
+  { id: 'moller', name: '🏰 马勒别墅', lat: 31.2184, lng: 121.4528, day: 'day2', desc: '童话风老洋房', time: '10:30–11:30', order: '②' },
+  { id: 'xingguang', name: '📸 星光照材城', lat: 31.2110, lng: 121.4770, day: 'day2', desc: '鲁班路300号·摄影器材城', time: '11:30–12:30', order: '③' },
+  { id: 'xinjitian', name: '🛍️ 新天地', lat: 31.2219, lng: 121.4704, day: 'day2', desc: '石库门+DJI旗舰店+日月光午餐', time: '12:30–14:00', order: '④' },
+  { id: 'nanjing', name: '🛒 南京路步行街', lat: 31.2377, lng: 121.4753, day: 'day2', desc: '中华第一商业街', time: '14:00–15:00', order: '⑤' },
+  { id: '1000trees', name: '🌳 天安千树', lat: 31.2527, lng: 121.4512, day: 'day2', desc: '苏州河畔·魔幻建筑', time: '15:00–16:00', order: '⑥' },
+  { id: '1933', name: '🏗️ 1933老场坊', lat: 31.2627, lng: 121.4827, day: 'day2', desc: '屠宰场改建·工业风', time: '16:00–17:00', order: '⑦' },
+  { id: 'lujiazui2', name: '🌆 陆家嘴夜景', lat: 31.2402, lng: 121.4979, day: 'day2', desc: '登高看浦西夜景', time: '18:30–20:00', order: '⑧' },
+  // === 5/13 (Wed) — 文艺路线 ===
+  { id: 'wukang', name: '🏛️ 武康大楼', lat: 31.2063, lng: 121.4337, day: 'day3', desc: '邬达克经典·上海地标', time: '09:00–09:30', order: '①' },
+  { id: 'wukangrd', name: '🏡 武康路', lat: 31.2080, lng: 121.4346, day: 'day3', desc: '老洋房·咖啡馆·梧桐树', time: '09:30–12:00', order: '②' },
+  { id: 'westbund', name: '🎨 西岸美术馆', lat: 31.1696, lng: 121.4593, day: 'day3', desc: '蓬皮杜合作·当代艺术', time: '13:00–15:00', order: '③' },
+  { id: 'xuhuibund', name: '🚶 徐汇滨江', lat: 31.1800, lng: 121.4550, day: 'day3', desc: '滨江步道·滑板公园·日落', time: '15:00–16:30', order: '④' },
+  { id: 'westbundpark', name: '🌿 西岸自然艺术公园', lat: 31.1125, lng: 121.4231, day: 'day3', desc: '华泾镇·环城生态公园·24h开放', time: '16:30–17:30', order: '⑤' },
+  // === 5/14 (Thu) — 深度文化 ===
+  { id: 'guangfulin', name: '🏛️ 广富林文化遗址', lat: 31.0590, lng: 121.1800, day: 'day4', desc: '松江·水下文化遗址', time: '08:00–09:30', order: '①' },
+  { id: 'longhua', name: '🐉 龙华寺', lat: 31.1768, lng: 121.4473, day: 'day4', desc: '千年古刹·素面早餐', time: '10:00–11:00', order: '②' },
+  { id: 'shanghaimuseum', name: '🏛️ 上海博物馆', lat: 31.2302, lng: 121.4710, day: 'day4', desc: '人民广场·文物精华', time: '11:30–13:30', order: '③' },
+  { id: 'nanxiang', name: '🚄 南浔站', lat: 30.8723, lng: 120.4245, day: 'day4', desc: '高铁至湖州南浔', time: '14:00→', order: '④' },
+  // === Hotel ===
+  { id: 'hotel', name: '🏨 如家精选·徐家汇', lat: 31.1960, lng: 121.4390, day: 'hotel', desc: '天钥桥路400号·入住5/11-13', time: '' },
+  // === Food ===
+  { id: 'hutong', name: '🍜 湖心亭茶楼', lat: 31.2285, lng: 121.4890, day: 'food', desc: '豫园·百年茶楼', time: '' },
+  { id: 'rimoon', name: '🍝 日月光中心', lat: 31.2140, lng: 121.4660, day: 'food', desc: '5/12午餐·美食广场', time: '12:30' },
+];
+
+// Map day labels to colors for quick lookup
+const dayColors = {};
+for (const [k, v] of Object.entries(colors)) dayColors[k] = v.color;
+
+// === MAP ===
+const map = L.map('map', { zoomControl: true, attributionControl: true }).setView([31.213, 121.460], 13);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 18 }).addTo(map);
+
+// Layer groups
+const layerGroups = {};
+for (const d of ['day1','day2','day3','day4','hotel','food']) {
+  layerGroups[d] = L.layerGroup().addTo(map);
+}
+
+// Route polylines
+const routes = {
+  day1: [[31.1925,121.4325],[31.1459,121.6708],[31.1423,121.6571],[31.2357,121.5014],[31.2402,121.4979],[31.2353,121.4876],[31.2520,121.4910]],
+  day2: [[31.2289,121.4880],[31.2184,121.4528],[31.2110,121.4770],[31.2140,121.4660],[31.2219,121.4704],[31.2377,121.4753],[31.2527,121.4512],[31.2627,121.4827],[31.2402,121.4979]],
+  day3: [[31.2063,121.4337],[31.2080,121.4346],[31.1696,121.4593],[31.1800,121.4550],[31.1125,121.4231]],
+  day4: [[31.0590,121.1800],[31.1768,121.4473],[31.2302,121.4710]],
+};
+
+for (const [day, coords] of Object.entries(routes)) {
+  const c = colors[day].iconColor;
+  L.polyline(coords, { color: c, weight: 2.5, opacity: 0.5, dashArray: '8, 8' }).addTo(layerGroups[day]);
+}
+
+// Markers
+const markersByDay = {};
+for (const poi of pois) {
+  const cfg = colors[poi.day] || colors.food;
+  const marker = L.marker([poi.lat, poi.lng], {
+    icon: L.divIcon({
+      html: `<div style="width:14px;height:14px;background:${cfg.iconColor};border:3px solid #fff;border-radius:50%;box-shadow:0 2px 6px rgba(0,0,0,0.3);"></div>`,
+      iconSize: [14, 14], className: ''
+    })
+  }).addTo(layerGroups[poi.day]);
+
+  const dateLabel = colors[poi.day] ? colors[poi.day].label : poi.day;
+  marker.bindPopup(`
+    <div class="popup-title">${poi.name}</div>
+    <div class="popup-date" style="background:${cfg.color}">${dateLabel}</div>
+    <div class="popup-desc">${poi.desc}</div>
+    ${poi.time ? `<div class="popup-desc" style="margin-top:4px;color:#888;">🕐 ${poi.time}</div>` : ''}
+    ${poi.order ? `<div class="popup-desc" style="margin-top:2px;color:#aaa;">${poi.order}</div>` : ''}
+  `);
+
+  if (!markersByDay[poi.day]) markersByDay[poi.day] = [];
+  markersByDay[poi.day].push(marker);
+}
+
+// === FILTER BAR ===
+const dayKeys = ['day1','day2','day3','day4'];
+const extraKeys = ['hotel','food'];
+const bar = document.getElementById('filter-bar');
+
+// Helper: count POIs per day
+function countPois(day) { return pois.filter(p => p.day === day).length; }
+
+// Create buttons
+const btnAll = document.createElement('button');
+btnAll.className = 'filter-btn filter-btn-all active';
+btnAll.innerHTML = '📌 全部';
+btnAll.onclick = () => setFilter('all');
+bar.appendChild(btnAll);
+
+for (const key of dayKeys) {
+  const btn = document.createElement('button');
+  btn.className = 'filter-btn active';
+  btn.dataset.day = key;
+  const c = colors[key];
+  btn.innerHTML = `<span class="dot" style="background:${c.iconColor}"></span> ${c.label} <span class="count">(${countPois(key)})</span>`;
+  btn.style.borderColor = c.iconColor;
+  btn.style.color = c.iconColor;
+  btn.onclick = () => toggleDay(key);
+  bar.appendChild(btn);
+}
+
+// Extra toggles (hotel, food) on the right
+const extraDiv = document.createElement('div');
+extraDiv.className = 'filter-extra';
+extraDiv.innerHTML = '<span style="font-size:11px;color:#999;margin-right:2px;">常显</span>';
+
+for (const key of extraKeys) {
+  const btn = document.createElement('button');
+  btn.className = 'filter-extra-btn active';
+  btn.dataset.day = key;
+  const c = colors[key];
+  btn.innerHTML = `${c.emoji} ${c.label}`;
+  btn.style.borderColor = c.color;
+  btn.style.color = c.color;
+  btn.onclick = () => toggleExtra(key);
+  extraDiv.appendChild(btn);
+}
+bar.appendChild(extraDiv);
+
+// State
+let allActive = true;
+const dayActive = { day1: true, day2: true, day3: true, day4: true };
+const extraActive = { hotel: true, food: true };
+
+function setFilter(mode) {
+  if (mode === 'all') {
+    allActive = true;
+    for (const k of dayKeys) dayActive[k] = true;
+    for (const k of extraKeys) extraActive[k] = true;
+    updateUI();
+    applyFilter();
+    map.fitBounds(allBounds());
+  } else if (mode === 'single') {
+    allActive = false;
+    updateUI();
+    applyFilter();
+  }
+}
+
+function toggleDay(key) {
+  if (allActive) {
+    // First click on any day: switch to single-day mode with just this day
+    allActive = false;
+    for (const k of dayKeys) dayActive[k] = (k === key);
+    for (const k of extraKeys) extraActive[k] = true; // keep extras on
+  } else {
+    dayActive[key] = !dayActive[key];
+    // Check if all on -> all mode
+    if (dayKeys.every(k => dayActive[k])) {
+      allActive = true;
+      for (const k of extraKeys) extraActive[k] = true;
+    }
+  }
+  updateUI();
+  applyFilter();
+  fitFilteredBounds();
+}
+
+function toggleExtra(key) {
+  extraActive[key] = !extraActive[key];
+  // If toggling off, don't change allActive state
+  updateUI();
+  applyFilter();
+  fitFilteredBounds();
+}
+
+function updateUI() {
+  // All button
+  btnAll.className = 'filter-btn filter-btn-all' + (allActive ? ' active' : '');
+  btnAll.innerHTML = allActive ? '📌 全部' : '📌 全部';
+
+  // Day buttons
+  for (const k of dayKeys) {
+    const btn = bar.querySelector(`[data-day="${k}"]`);
+    const isOn = dayActive[k];
+    btn.className = 'filter-btn' + (isOn ? ' active' : '');
+    const c = colors[k];
+    if (isOn) {
+      btn.style.background = c.color;
+      btn.style.color = '#fff';
+      btn.style.borderColor = c.color;
+    } else {
+      btn.style.background = '#fff';
+      btn.style.color = c.color;
+      btn.style.borderColor = '#ddd';
+    }
+  }
+
+  // Extra buttons
+  for (const k of extraKeys) {
+    const btn = extraDiv.querySelector(`[data-day="${k}"]`);
+    const isOn = extraActive[k];
+    btn.className = 'filter-extra-btn' + (isOn ? ' active' : '');
+    const c = colors[k];
+    if (isOn) {
+      btn.style.background = c.color;
+      btn.style.color = '#fff';
+      btn.style.borderColor = c.color;
+    } else {
+      btn.style.background = '#fff';
+      btn.style.color = c.color;
+      btn.style.borderColor = '#ddd';
+    }
+  }
+}
+
+function applyFilter() {
+  // Day layers
+  for (const k of dayKeys) {
+    const g = layerGroups[k];
+    const shouldShow = allActive || dayActive[k];
+    if (shouldShow && !map.hasLayer(g)) map.addLayer(g);
+    else if (!shouldShow && map.hasLayer(g)) map.removeLayer(g);
+  }
+  // Extra layers (hotel, food) — always on unless specifically toggled
+  for (const k of extraKeys) {
+    const g = layerGroups[k];
+    const shouldShow = extraActive[k];
+    if (shouldShow && !map.hasLayer(g)) map.addLayer(g);
+    else if (!shouldShow && map.hasLayer(g)) map.removeLayer(g);
+  }
+}
+
+function allBounds() {
+  const all = pois.map(p => [p.lat, p.lng]);
+  return L.latLngBounds(all);
+}
+
+function fitFilteredBounds() {
+  const visible = pois.filter(p => {
+    if (p.day.startsWith('day')) return allActive || dayActive[p.day];
+    return extraActive[p.day];
+  });
+  if (visible.length === 0) return;
+  const bounds = L.latLngBounds(visible.map(p => [p.lat, p.lng]));
+  map.fitBounds(bounds, { padding: [50, 50], maxZoom: 14 });
+}
+
+// Initial fit
+map.fitBounds(allBounds(), { padding: [50, 50] });
+
+// === LEGEND (decorative only) ===
+const Legend = L.control({ position: 'bottomright' });
+Legend.onAdd = function() {
+  const div = L.DomUtil.create('div', 'legend');
+  div.innerHTML = '<h4>🎨 图例</h4>';
+  for (const [key, cfg] of [['day1',colors.day1],['day2',colors.day2],['day3',colors.day3],['day4',colors.day4],['hotel',colors.hotel],['food',colors.food]]) {
+    div.innerHTML += `<div class="legend-item"><span class="dot" style="background:${cfg.iconColor}"></span> ${cfg.label}</div>`;
+  }
+  return div;
+};
+Legend.addTo(map);
+</script>
+</body>
+</html>
