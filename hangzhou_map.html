@@ -8,7 +8,9 @@
 <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.min.js"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-body{font-family:-apple-system,sans-serif;background:#1a1a2e;display:flex;flex-direction:column;height:100dvh}
+body{font-family:-apple-system,sans-serif;background:#1a1a2e;display:flex;flex-direction:column;height:100%;min-height:100dvh}
+html{height:100%}
+#map{flex:1;min-height:0}
 #header{background:linear-gradient(135deg,#16213e,#0f3460);color:#fff;padding:10px 16px;text-align:center}
 #header h1{font-size:18px}
 #header p{font-size:12px;opacity:.7}
@@ -163,6 +165,11 @@ function fs(){
 m.fitBounds(abnd(),{padding:[50,50]});
 setTimeout(function(){m.invalidateSize()},300);
 window.addEventListener("load",function(){m.invalidateSize()});
+// Retry invalidateSize multiple times for mobile browsers
+var retries=[500,800,1200,2000];
+retries.forEach(function(d){setTimeout(function(){m.invalidateSize()},d)});
+// ResizeObserver for modern browsers
+if(window.ResizeObserver){new ResizeObserver(function(){m.invalidateSize()}).observe(document.getElementById("map"))}
 </script>
 </body>
 </html>
