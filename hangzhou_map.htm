@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🗺️ 杭州行程互动地图 · ChinaTrip 2026</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.min.css" />
+<script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.min.js"></script>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif; background: #1a1a2e; display: flex; flex-direction: column; height: 100vh; }
+#header { background: linear-gradient(135deg, #16213e, #0f3460); color: #fff; padding: 10px 16px; text-align: center; }
+#header h1 { font-size: 18px; letter-spacing: 1px; }
+#header p { font-size: 12px; opacity: 0.7; margin-top: 2px; }
+#filter-bar { background: #fff; padding: 8px 12px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; border-bottom: 1px solid #e0e0e0; box-shadow: 0 1px 4px rgba(0,0,0,0.08); z-index: 1000; }
+.filter-btn { display: inline-flex; align-items: center; gap: 4px; padding: 5px 14px; border-radius: 20px; border: 2px solid #ddd; background: #fff; cursor: pointer; font-size: 13px; font-weight: 500; transition: all 0.2s; }
+.filter-btn:hover { transform: translateY(-1px); box-shadow: 0 2px 8px rgba(0,0,0,0.12); }
+.filter-btn.active { color: #fff; border-color: transparent; box-shadow: 0 2px 6px rgba(0,0,0,0.2); }
+.filter-btn .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+.filter-btn .count { font-size: 10px; opacity: 0.7; margin-left: 2px; }
+.filter-btn-all { background: #1a1a2e; color: #fff; border-color: #1a1a2e; }
+.filter-btn-all.active { background: #0d0d1a; border-color: #0d0d1a; }
+.filter-extra { margin-left: auto; display: flex; gap: 4px; }
+.filter-extra-btn { display: inline-flex; align-items: center; gap: 3px; padding: 5px 10px; border-radius: 20px; border: 2px solid #ddd; background: #fff; cursor: pointer; font-size: 12px; transition: all 0.2s; }
+.filter-extra-btn.active { color: #fff; border-color: transparent; }
+#map { flex: 1; }
+.popup-title { font-size: 15px; font-weight: 700; margin-bottom: 4px; }
+.popup-date { display: inline-block; color: #fff; padding: 2px 8px; border-radius: 10px; font-size: 11px; margin-bottom: 4px; }
+.popup-desc { font-size: 12px; color: #555; line-height: 1.5; }
+.popup-time { font-size: 11px; color: #888; margin-top: 4px; }
+@media (max-width: 500px) {
+  #filter-bar { padding: 6px 8px; gap: 4px; }
+  .filter-btn { padding: 4px 10px; font-size: 12px; }
+  .filter-extra-btn { padding: 4px 8px; font-size: 11px; }
+}
+</style>
+</head>
+<body>
+
+<div id="header">
+  <h1>🗺️ 杭州行程互动地图 · ChinaTrip 2026</h1>
+  <p>5/19 黑神话零售店→M511 → 5/20 运河大环线 → 5/21 阿里数字日 → 5/22 良渚文化日 → 5/23 禅茶造像</p>
+</div>
+<div id="filter-bar"></div>
+<div id="map"></div>
+
+<script>
+const pois = [
+  // ===== May 19 🟣 抵达日 =====
+  { id: 'hz-east', addr: '杭州市上城区天城路', name: '🚄 杭州东站', lat: 30.293, lng: 120.208, day: 'day1', desc: '绍兴→杭州抵达站', time: '~12:00', order: '①' },
+  { id: 'bmyth', addr: '杭州市西湖区艺创小镇C3幢', name: '🐵 黑神话悟空零售店', lat: 30.137, lng: 120.067, day: 'day1', desc: '全国首家线下店·艺创小镇C3幢', time: '12:40-13:30', order: '②' },
+  { id: 'm511', addr: '杭州市西湖区西溪路511号', name: '🎬 M511光影汇', lat: 30.271, lng: 120.115, day: 'day1', desc: '数字文娱极致体验·西溪路511号', time: '14:00-15:30', order: '③' },
+  { id: 'broken-bridge', addr: '杭州市西湖区北山街·断桥', name: '🌉 西湖断桥夜景', lat: 30.262, lng: 120.153, day: 'day1', desc: '夜游西湖·白堤漫步', time: '16:00→🌙', order: '④' },
+
+  // ===== May 20 🔵 运河大环线 =====
+  { id: 'wl-sunrise', addr: '杭州市西湖区苏堤', name: '🌅 西湖晨游', lat: 30.259, lng: 120.150, day: 'day2', desc: '清晨西湖·苏堤漫步', time: '6:30', order: '①' },
+  { id: 'qianwang', addr: '杭州市上城区南山路·钱王祠', name: '🏛️ 钱王祠', lat: 30.253, lng: 120.157, day: 'day2', desc: '南山路·清晨人少幽静', time: '6:45', order: '②' },
+  { id: 'leifeng', addr: '杭州市西湖区南山路15号', name: '🗼 雷峰塔', lat: 30.240, lng: 120.148, day: 'day2', desc: '登顶看西湖全景', time: '7:30', order: '③' },
+  { id: 'jingci', addr: '杭州市西湖区南山路56号', name: '🛕 净慈寺', lat: 30.238, lng: 120.148, day: 'day2', desc: '南屏晚钟🔔', time: '8:30', order: '④' },
+  { id: 'huagang', addr: '杭州市西湖区杨公堤10号', name: '🌸 花港观鱼', lat: 30.243, lng: 120.140, day: 'day2', desc: '苏堤南端', time: '9:00', order: '⑤' },
+  { id: 'wulin', addr: '杭州市拱墅区环城北路208号', name: '🚢 武林门码头', lat: 30.280, lng: 120.157, day: 'day2', desc: '京杭大运河游船出发', time: '11:00', order: '⑥' },
+  { id: 'xiaohe', addr: '杭州市拱墅区小河直街', name: '🏘️ 小河直街', lat: 30.305, lng: 120.129, day: 'day2', desc: '运河边的历史街区', time: '15:00', order: '⑦' },
+  { id: 'hanggang', addr: '杭州市拱墅区大运河杭钢公园', name: '🏭 大运河杭钢公园', lat: 30.340, lng: 120.140, day: 'day2', desc: '工业遗存改造公园', time: '17:00', order: '⑧' },
+
+  // ===== May 21 🟢 阿里·数字奇遇日 =====
+  { id: 'alibaba', addr: '杭州市余杭区文一西路969号', name: '🏢 阿里参访🚀', lat: 30.282, lng: 120.025, day: 'day3', desc: '西溪·未来科技城', time: '9:00', order: '①' },
+  { id: 'tianmuli', addr: '杭州市西湖区天目山路398号', name: '🌳 天目里', lat: 30.278, lng: 120.103, day: 'day3', desc: 'Renzo Piano建筑·咖啡·午餐', time: '12:00', order: '②' },
+  { id: 'wensan', addr: '杭州市西湖区文三路', name: '🌅 文三数字生活街区', lat: 30.280, lng: 120.135, day: 'day3', desc: '未来科技体验中心·机器人互动', time: '14:00', order: '③' },
+  { id: 'rokid', addr: '杭州市西湖区西溪路', name: '👓 Rokid AR体验', lat: 30.274, lng: 120.120, day: 'day3', desc: '增强现实体验', time: '15:00', order: '④' },
+  { id: 'dunhuang-vr', addr: '杭州市上城区湖滨步行街', name: '🥽 西湖遇见敦煌VR', lat: 30.266, lng: 120.155, day: 'day3', desc: '沉浸式敦煌体验', time: '16:00', order: '⑤' },
+  { id: 'wanmei', addr: '杭州市西湖区·玩美的一天', name: '🎭 玩美的一天', lat: 30.274, lng: 120.132, day: 'day3', desc: '古风×二次元沉浸街区', time: '17:00', order: '⑥' },
+  { id: 'xr', addr: '杭州市西湖区·瞬息幻境XR', name: '🔥 瞬息幻境XR', lat: 30.272, lng: 120.128, day: 'day3', desc: '梦回贞观·与唐太宗对话', time: '18:00', order: '⑦' },
+  { id: 'wulin-night', addr: '杭州市拱墅区武林路·武林夜市', name: '🏮 武林夜市', lat: 30.279, lng: 120.153, day: 'day3', desc: '夜市逛吃', time: '20:00', order: '⑧' },
+
+  // ===== May 22 🟠 良渚文化日 =====
+  { id: 'banben', addr: '杭州市余杭区文润阁', name: '🏛️ 杭州国家版本馆', lat: 30.370, lng: 120.008, day: 'day4', desc: '文润阁·王澍设计', time: '9:00', order: '①' },
+  { id: 'liangzhu-museum', addr: '杭州市余杭区美丽洲路1号', name: '🏺 良渚博物院', lat: 30.377, lng: 120.012, day: 'day4', desc: '实证五千年文明', time: '11:00', order: '②' },
+  { id: 'liangzhu-park', addr: '杭州市余杭区凤都路', name: '🦌 良渚古城遗址公园', lat: 30.393, lng: 119.988, day: 'day4', desc: '喂鹿🐾·古城遗迹', time: '12:00', order: '③' },
+  { id: 'wushan', addr: '杭州市上城区吴山广场', name: '⛰️ 吴山广场', lat: 30.246, lng: 120.166, day: 'day4', desc: '登城隍阁俯瞰杭城', time: '18:00', order: '④' },
+  { id: 'hefang', addr: '杭州市上城区河坊街', name: '🎭 河坊街夜市', lat: 30.247, lng: 120.168, day: 'day4', desc: '南宋御街·夜市逛吃', time: '20:00', order: '⑤' },
+
+  // ===== May 23 🔴 禅茶·造像·阳台 =====
+  { id: 'lingyin', addr: '杭州市西湖区灵隐路法云弄1号', name: '🙏 灵隐寺(飞来峰)', lat: 30.245, lng: 120.096, day: 'day5', desc: '早去避人', time: '8:00', order: '①' },
+  { id: 'cibei', addr: '杭州市西湖区灵隐路·永福寺内', name: '☕ 慈杯咖啡(永福寺)', lat: 30.244, lng: 120.095, day: 'day5', desc: '寺庙咖啡体验', time: '12:00', order: '②' },
+  { id: 'longjing', addr: '杭州市西湖区龙井村', name: '🍵 龙井村', lat: 30.221, lng: 120.129, day: 'day5', desc: '品茶·茶田漫步', time: '13:00', order: '③' },
+  { id: 'ciyun', addr: '杭州市上城区玉皇山·慈云岭', name: '🪨 慈云岭造像', lat: 30.220, lng: 120.147, day: 'day5', desc: '玉皇山·五代吴越国石刻', time: '14:30', order: '④' },
+  { id: 'jiuxi', addr: '杭州市西湖区九溪路', name: '🐾 九溪烟树', lat: 30.201, lng: 120.110, day: 'day5', desc: '森林溪涧散步', time: '15:30', order: '⑤' },
+  { id: 'city-balcony', addr: '杭州市上城区钱江新城城市阳台', name: '🏙️ 城市阳台', lat: 30.240, lng: 120.210, day: 'day5', desc: '钱江新城夜景🌃', time: '18:00', order: '⑥' },
+
+  // ===== Hotel 🏨 =====
+  { id: 'yuqi-hotel', addr: '杭州市上城区水澄路·遇柒酒店', name: '🏨 遇柒酒店(5/19-22)', lat: 30.224, lng: 120.143, day: 'hotel', desc: '水澄路·西湖风景区店', time: '4晚' },
+  { id: 'jinglan', addr: '杭州市上城区钱江新城·钱新景澜青棠', name: '🏨 钱新景澜青棠(5/23)', lat: 30.238, lng: 120.207, day: 'hotel', desc: '钱江新城·步行城市阳台5min', time: '1晚' },
+];
+
+// Color scheme
+const colors = {
+  day1: { color: '#9c27b0', bg: '#f3e5f5', label: '5/19 🟣 抵达', iconColor: '#7b1fa2', emoji: '🟣' },
+  day2: { color: '#1a73e8', bg: '#e8f0fe', label: '5/20 🔵 运河', iconColor: '#0d5ec1', emoji: '🔵' },
+  day3: { color: '#34a853', bg: '#e6f4ea', label: '5/21 🟢 数字', iconColor: '#1e8e3e', emoji: '🟢' },
+  day4: { color: '#ff6b35', bg: '#fff0e6', label: '5/22 🟠 良渚', iconColor: '#e85d26', emoji: '🟠' },
+  day5: { color: '#e53935', bg: '#ffebee', label: '5/23 🔴 禅茶', iconColor: '#c62828', emoji: '🔴' },
+  hotel: { color: '#f9a825', bg: '#fff8e1', label: '🏨 酒店', iconColor: '#f57f17', emoji: '🏨' },
+};
+
+// Routes - each day's route order
+const routes = {
+  day1: [[30.293,120.208],[30.137,120.067],[30.271,120.115],[30.262,120.153]],
+  day2: [[30.259,120.150],[30.253,120.157],[30.240,120.148],[30.238,120.148],[30.243,120.140],[30.280,120.157],[30.305,120.129],[30.340,120.140]],
+  day3: [[30.282,120.025],[30.278,120.103],[30.280,120.135],[30.274,120.120],[30.266,120.155],[30.274,120.132],[30.272,120.128],[30.279,120.153]],
+  day4: [[30.370,120.008],[30.377,120.012],[30.393,119.988],[30.246,120.166],[30.247,120.168]],
+  day5: [[30.245,120.096],[30.244,120.095],[30.221,120.129],[30.220,120.147],[30.201,120.110],[30.240,120.210]],
+};
+
+// Initialize map
+const map = L.map('map').setView([30.28, 120.12], 12);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution: '&copy; OpenStreetMap contributors'
+}).addTo(map);
+
+// Layer groups
+const dayKeys = ['day1','day2','day3','day4','day5'];
+const extraKeys = ['hotel'];
+const allKeys = [...dayKeys, ...extraKeys];
+const layerGroups = {};
+for (const d of allKeys) {
+  layerGroups[d] = L.layerGroup().addTo(map);
+}
+
+// Route polylines
+const routePolylines = {};
+for (const [day, coords] of Object.entries(routes)) {
+  const cfg = colors[day];
+  routePolylines[day] = L.polyline(coords, {
+    color: cfg.iconColor,
+    weight: 2.5,
+    opacity: 0.6,
+    dashArray: '8, 8'
+  }).addTo(layerGroups[day]);
+}
+
+// Markers
+const markersByDay = {};
+for (const poi of pois) {
+  const cfg = colors[poi.day] || colors.hotel;
+  let icon;
+  if (poi.day === 'hotel') {
+    icon = L.divIcon({
+      html: `<div style="font-size:28px;filter:drop-shadow(0 2px 4px rgba(0,0,0,0.5));">🏨</div>`,
+      iconSize: [28, 28], className: ''
+    });
+  } else {
+    icon = L.divIcon({
+      html: `<div style="width:14px;height:14px;background:${cfg.iconColor};border:3px solid #fff;border-radius:50%;box-shadow:0 2px 6px rgba(0,0,0,0.3);"></div>`,
+      iconSize: [14, 14], className: ''
+    });
+  }
+  // Copy address to clipboard helper
+  function copyAddr(text) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).catch(function(){});
+    } else {
+      var ta = document.createElement('textarea');
+      ta.value = text;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+    }
+  }
+  const marker = L.marker([poi.lat, poi.lng], { icon }).addTo(layerGroups[poi.day]);
+  marker.bindPopup(`
+    <div class="popup-title">${poi.name}</div>
+    <div class="popup-date" style="background:${cfg.color}">${cfg.label}</div>
+    <div class="popup-desc">${poi.desc}</div>
+    ${poi.time ? `<div class="popup-time">🕐 ${poi.time}</div>` : ''}
+    ${poi.order ? `<div class="popup-time" style="margin-top:2px;">${poi.order}</div>` : ''}
+    ${poi.addr ? `
+    <div style="margin-top:8px;padding-top:6px;border-top:1px solid #eee;">
+      <div style="font-size:11px;color:#999;margin-bottom:5px;">📍 ${poi.addr}</div>
+      <div style="display:flex;gap:5px;">
+        <button onclick="copyAddr('${poi.addr.replace(/'/g, "\\'")}')" style="flex:1;padding:5px 8px;border:none;border-radius:5px;background:#f0f0f0;font-size:11px;cursor:pointer;">
+          📋 复制地址
+        </button>
+        <a href="https://uri.amap.com/search?keyword=${encodeURIComponent(poi.addr)}" target="_blank" style="flex:1;display:flex;align-items:center;justify-content:center;padding:5px 8px;border-radius:5px;background:#1677ff;color:#fff;font-size:11px;text-decoration:none;">
+          🗺️ 高德打开
+        </a>
+      </div>
+    </div>
+    ` : ''}
+  `);
+  if (!markersByDay[poi.day]) markersByDay[poi.day] = [];
+  markersByDay[poi.day].push(marker);
+}
+
+// Filter bar
+const bar = document.getElementById('filter-bar');
+
+function countPois(day) { return pois.filter(p => p.day === day).length; }
+
+// "全部" button
+const btnAll = document.createElement('button');
+btnAll.className = 'filter-btn filter-btn-all active';
+btnAll.innerHTML = '📌 全部';
+btnAll.onclick = () => setFilter('all');
+bar.appendChild(btnAll);
+
+// Day buttons
+for (const key of dayKeys) {
+  const btn = document.createElement('button');
+  btn.className = 'filter-btn active';
+  btn.dataset.day = key;
+  const c = colors[key];
+  btn.innerHTML = `<span class="dot" style="background:${c.iconColor}"></span> ${c.label} <span class="count">(${countPois(key)})</span>`;
+  btn.style.borderColor = c.iconColor;
+  btn.style.color = c.iconColor;
+  btn.onclick = () => toggleDay(key);
+  bar.appendChild(btn);
+}
+
+// Extra toggles
+const extraDiv = document.createElement('div');
+extraDiv.className = 'filter-extra';
+for (const key of extraKeys) {
+  const btn = document.createElement('button');
+  btn.className = 'filter-extra-btn active';
+  btn.dataset.day = key;
+  const c = colors[key];
+  btn.innerHTML = `${c.emoji} ${c.label}`;
+  btn.style.borderColor = c.color;
+  btn.style.color = c.color;
+  btn.onclick = () => toggleExtra(key);
+  extraDiv.appendChild(btn);
+}
+bar.appendChild(extraDiv);
+
+// State
+let allActive = true;
+const dayActive = { day1: true, day2: true, day3: true, day4: true, day5: true };
+const extraActive = { hotel: true };
+
+function setFilter(mode) {
+  if (mode === 'all') {
+    allActive = true;
+    for (const k of dayKeys) dayActive[k] = true;
+    for (const k of extraKeys) extraActive[k] = true;
+    updateUI();
+    applyFilter();
+    map.fitBounds(allBounds());
+  }
+}
+
+function toggleDay(key) {
+  const activeCount = Object.values(dayActive).filter(v => v).length;
+
+  if (allActive || activeCount === dayKeys.length) {
+    // All active → solo clicked day
+    allActive = false;
+    for (const k of dayKeys) dayActive[k] = false;
+    dayActive[key] = true;
+  } else if (activeCount === 1 && dayActive[key]) {
+    // Only this day active → show all
+    setFilter('all');
+    return;
+  } else {
+    // Multiple/other days active, clicked is different or inactive → solo it
+    for (const k of dayKeys) dayActive[k] = false;
+    dayActive[key] = true;
+    allActive = false;
+  }
+  updateUI();
+  applyFilter();
+}
+
+function toggleExtra(key) {
+  extraActive[key] = !extraActive[key];
+  updateUI();
+  applyFilter();
+}
+
+function updateUI() {
+  btnAll.className = 'filter-btn filter-btn-all' + (allActive ? ' active' : '');
+  for (const btn of bar.querySelectorAll('.filter-btn:not(.filter-btn-all):not(.filter-extra-btn)')) {
+    const k = btn.dataset.day;
+    btn.className = 'filter-btn' + (dayActive[k] ? ' active' : '');
+  }
+  for (const btn of bar.querySelectorAll('.filter-extra-btn')) {
+    const k = btn.dataset.day;
+    btn.className = 'filter-extra-btn' + (extraActive[k] ? ' active' : '');
+    btn.style.color = extraActive[k] ? '#fff' : colors[k].color;
+    btn.style.background = extraActive[k] ? colors[k].color : '#fff';
+  }
+}
+
+function applyFilter() {
+  for (const k of dayKeys) {
+    if (dayActive[k]) { if (!map.hasLayer(layerGroups[k])) map.addLayer(layerGroups[k]); }
+    else { if (map.hasLayer(layerGroups[k])) map.removeLayer(layerGroups[k]); }
+  }
+  for (const k of extraKeys) {
+    if (extraActive[k]) { if (!map.hasLayer(layerGroups[k])) map.addLayer(layerGroups[k]); }
+    else { if (map.hasLayer(layerGroups[k])) map.removeLayer(layerGroups[k]); }
+  }
+  fitSelected();
+}
+
+function allBounds() {
+  const b = L.latLngBounds();
+  for (const poi of pois) b.extend([poi.lat, poi.lng]);
+  return b;
+}
+
+function fitSelected() {
+  const b = L.latLngBounds();
+  for (const [k, v] of Object.entries({ ...dayActive, ...extraActive })) {
+    if (v && markersByDay[k]) markersByDay[k].forEach(m => b.extend(m.getLatLng()));
+  }
+  if (b.isValid()) map.fitBounds(b, { padding: [50, 50] });
+}
+
+// Initial fit
+map.fitBounds(allBounds(), { padding: [50, 50] });
+</script>
+</body>
+</html>
