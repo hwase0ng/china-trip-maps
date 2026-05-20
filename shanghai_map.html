@@ -145,22 +145,21 @@ for (const poi of pois) {
     <div class="popup-desc">${poi.desc}</div>
     ${poi.time ? `<div class="popup-desc" style="margin-top:4px;color:#888;">🕐 ${poi.time}</div>` : ''}
     ${poi.order ? `<div class="popup-desc" style="margin-top:2px;color:#aaa;">${poi.order}</div>` : ''}
-    ${poi.addr ? `
     <div style="margin-top:8px;padding-top:6px;border-top:1px solid #eee;">
-      <div style="font-size:11px;color:#999;margin-bottom:5px;">📍 ${poi.addr}</div>
       <div style="display:flex;gap:5px;">
+        ${poi.addr ? `
         <button onclick="navigator.clipboard.writeText('${poi.addr.replace(/'/g, "\\'")}').catch(function(){})" style="flex:1;padding:5px 8px;border:none;border-radius:5px;background:#f0f0f0;font-size:11px;cursor:pointer;">
           📋 复制地址
         </button>
         <a href="https://uri.amap.com/search?keyword=${encodeURIComponent(poi.addr)}" target="_blank" style="flex:1;display:flex;align-items:center;justify-content:center;padding:5px 8px;border-radius:5px;background:#1677ff;color:#fff;font-size:11px;text-decoration:none;">
           🗺️ 高德打开
         </a>
-        <a href="https://baike.baidu.com/search?word=${encodeURIComponent(baikeName(poi.name))}" target="_blank" style="flex:1;display:flex;align-items:center;justify-content:center;padding:5px 8px;border-radius:5px;background:#e74c3c;color:#fff;font-size:11px;text-decoration:none;">
+        ` : ''}
+        <a href="https://baike.baidu.com/item/${encodeURIComponent(baikeName(poi.name))}" target="_blank" style="flex:1;display:flex;align-items:center;justify-content:center;padding:5px 8px;border-radius:5px;background:#e74c3c;color:#fff;font-size:11px;text-decoration:none;">
           📖 百度百科
         </a>
       </div>
     </div>
-    ` : ''}
   `);
 
   if (!markersByDay[poi.day]) markersByDay[poi.day] = [];
